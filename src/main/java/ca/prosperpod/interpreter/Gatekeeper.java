@@ -36,9 +36,9 @@ public class Gatekeeper {
         if (msg.equals("connection-did-open")) {
             return briefUser();
         } else if (msg.equals("commands?")) {
-            String[] commands = {"define", "forget", "forget-all", "defs"};
+            String[] commands = {"define", "forget", "forget-all", "defs", "cls", "lookup"};
             return prefixify("commands:", String.join(", ", commands));
-        } else if (msg.startsWith("define") || msg.equals("?define")) {
+        } else if (msg.startsWith("define") || msg.equals("def") || msg.equals("?define")) {
             if (msg.equals("?define")) {
                 return prefixify("usage:", "'define {identifier} {expression}' adds a definition that " +
                         "can be used in later commands. Use the 'defs' command to view your definitions. For example, " +
@@ -70,14 +70,20 @@ public class Gatekeeper {
             }
         } else if (msg.equals("cls") || msg.equals("?cls")) {
             if (msg.equals("?cls")) {
-                return prefixify("usage:", "'cls' clears the console screen. Use it when things are getting " +
-                        "too cluttered.");
+                return prefixify("usage:", "'cls' clears the console screen. Use it when " +
+                        "things are getting too cluttered.");
             } else {
                 return new JSONObject().put("console-command", "clear-console").toString();
             }
+        } else if (msg.startsWith("lookup") || msg.equals("?lookup")) {
+            if (msg.equals("?lookup")) {
+                return prefixify("usage", "'lookup {identifier}' looks up the the definition " +
+                        "of {identifier}.");
+            } else {
+                return lookupDefinition(msg);
+            }
         } else {
-            return new JSONObject().put("message", "Command '" + msg.split(" ")[0] + "' is not defined.")
-                    .put("prefix", "error:").toString();
+            return prefixify("error:", "Command '" + msg.split(" ")[0] + "' is not defined.");
         }
     }
 
@@ -92,9 +98,8 @@ public class Gatekeeper {
         if (definition.contains("\"")) {
             String expression = StringUtils.substringBetween(definition, "\"");
             if (expression.isEmpty()) {
-                return new JSONObject().put("prefix", "error:")
-                        .put("message", "Invalid expression formatting (found an open " +
-                                "quote with no matching closing quote).").toString();
+                return prefixify("error:", "Invalid expression formatting (found an open " +
+                                "quote with no matching closing quote).");
             }
 
             String preString = definition.substring(0, definition.indexOf("\"")).trim();
@@ -103,9 +108,9 @@ public class Gatekeeper {
             String[] postStringSplit = postString.split(" ");
 
             if (preStringSplit.length != 2 || !postString.isEmpty()) {
-                return new JSONObject().put("prefix", "error:")
-                        .put("message", "'define {identifier} {expression}' expects 2 arguments; " +
-                                "received " + preStringSplit.length + postStringSplit.length + ".").toString();
+                return prefixify("error:", "'define {identifier} {expression}' expects " +
+                        "2 arguments; received " + (preStringSplit.length - 1 + postStringSplit.length)
+                        + ".");
             }
 
             definitionExpression = expression;
@@ -113,9 +118,8 @@ public class Gatekeeper {
         } else {
             String[] definitionComponents = definition.split(" ");
             if (definitionComponents.length != 3) {
-                return new JSONObject().put("prefix", "error:")
-                        .put("message", "'define {identifier} {expression}' expects 2 arguments; received "
-                                + definitionComponents.length + ".").toString();
+                return prefixify("error:", "'define {identifier} {expression}' expects 2 " +
+                        "arguments; received " + (definitionComponents.length - 1)+ ".");
             }
             definitionIdentifier = definitionComponents[1];
             definitionExpression = definitionComponents[2];
@@ -133,13 +137,11 @@ public class Gatekeeper {
                 this.userDefinitions.remove(key);
                 return "Forgot definition '" + key + "'.";
             } else {
-                return new JSONObject().put("prefix", "error:")
-                        .put("message", "Definition '" + key + "' does not exist.").toString();
+                return prefixify("error:", "Definition '" + key + "' does not exist.");
             }
         } else {
-            return new JSONObject().put("prefix", "error:")
-                    .put("message", "'forget {identifier}' expects 1 argument; received "
-                            + components.length + ".").toString();
+            return prefixify("error:", "'forget {identifier}' expects 1 argument; " +
+                    "received " + (components.length - 1) + ".");
         }
     }
 
@@ -157,14 +159,27 @@ public class Gatekeeper {
         if (definitions.isEmpty()) {
             definitions = "(empty)";
         }
-        return new JSONObject().put("prefix", "definitions:")
-                .put("message", definitions + ".").toString();
+        return prefixify("definitions:", definitions + ".");
+    }
+
+    private String lookupDefinition(String command) {
+        String[] commandComponents = command.split(" ");
+        if (commandComponents.length != 2) {
+            return prefixify("error:", "'lookup' {identifier} expects 1 argument; " +
+                    "received " + (commandComponents.length - 1) + ".");
+        }
+
+        String result = userDefinitions.get(commandComponents[1]);
+        if (result == null) {
+            return "Looked up '" + commandComponents[1] + "', but did not find any such definition.";
+        }
+
+        return prefixify("definition:", commandComponents[1] + " = " + result);
     }
 
     public void transmitString(String string) {
         this.socketSession.getAsyncRemote().sendText(string);
     }
-
     public void transmitJSON(JSONObject jsonObject) {
         this.transmitString(jsonObject.toString());
     }
