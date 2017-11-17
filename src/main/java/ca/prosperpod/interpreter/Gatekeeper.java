@@ -23,9 +23,11 @@ public class Gatekeeper {
         Integer podCount = ProsperCore.getInstance().getPods().length;
         String podAvailability = "There are currently " + podCount + " pods active. " +
                 "Enter a pod using the 'connect' command; e.g. 'connect pod-1'.";
+        String commandsInfo = "To see a list of available commands, type 'commands?'.";
 
         JSONObject briefingJSON = new JSONObject();
-        briefingJSON.put("messages", new String[]{welcome, podAvailability});
+        briefingJSON.put("messages", new String[]{welcome, podAvailability, commandsInfo})
+                .put("console-command", "set-sys-prefix gatekeeper:");
         return briefingJSON.toString();
     }
 
@@ -35,48 +37,53 @@ public class Gatekeeper {
             return briefUser();
         } else if (msg.equals("commands?")) {
             String[] commands = {"define", "forget", "forget-all", "defs"};
-            return new JSONObject().put("prefix", "commands:")
-                    .put("message", String.join(", ", commands)).toString();
+            return prefixify("commands:", String.join(", ", commands));
         } else if (msg.startsWith("define") || msg.equals("?define")) {
             if (msg.equals("?define")) {
-                return "Usage: 'define {identifier} {expression}' adds a definition that can be used in later " +
-                        "commands. Use the 'defs' command to view your definitions. For example, 'define" +
-                        " rsi-span 15' adds the definition 'rsi-span' - future references to 'rsi-span' " +
-                        "will hence yield the expression '15'; additionally, 'define kangaroo " +
-                        "\"world's thiqqest animal\" allows for multi-word definitions.";
+                return prefixify("usage:", "'define {identifier} {expression}' adds a definition that " +
+                        "can be used in later commands. Use the 'defs' command to view your definitions. For example, " +
+                        "'define rsi-span 15' adds the definition 'rsi-span' - future references to 'rsi-span' " +
+                        "will hence yield the expression '15'; additionally, 'define kangaroo \"world's thiqqest" +
+                        " animal\" allows for multi-word definitions.");
             } else {
                 return addDefinition(msg);
             }
         } else if (msg.equals("forget-all") || msg.equals("?forget-all")) {
             if (msg.equals("?forget-all")) {
-                return "Usage: 'forget-all' removes all previously saved definitions.";
+                return prefixify("usage:", "'forget-all' removes all previously saved definitions.");
             } else {
                 return removeAllDefinitions();
             }
         } else if (msg.startsWith("forget") || msg.equals("?forget")) {
             if (msg.equals("?forget")) {
-                return "Usage: 'forget {identifier}' removes the definition that corresponds with {definition}." +
-                        " For example, 'forget rsi-span' removes the entry 'rsi-span' if it was previously defined.";
+                return prefixify("usage:", "'forget {identifier}' removes the definition that corresponds " +
+                        "with {definition}.  For example, 'forget rsi-span' removes the entry 'rsi-span' if it was " +
+                        "previously defined.");
             } else {
                 return removeDefinition(msg);
             }
         } else if (msg.equals("defs") || msg.equals("?defs")) {
             if (msg.equals("?defs")) {
-                return "Usage: 'defs' lists all previously saved definitions.";
+                return prefixify("usage:", "'defs' lists all previously saved definitions.");
             } else {
                 return this.showDefinitions();
             }
         } else if (msg.equals("cls") || msg.equals("?cls")) {
             if (msg.equals("?cls")) {
-                return "Usage: 'cls' clears the console screen. Use it when things are getting " +
-                        "too cluttered.";
+                return prefixify("usage:", "'cls' clears the console screen. Use it when things are getting " +
+                        "too cluttered.");
             } else {
                 return new JSONObject().put("console-command", "clear-console").toString();
             }
         } else {
-            return new JSONObject().put("message", "Command '" + msg + "' is not defined.")
-                    .put("prefix", "Error:").toString();
+            return new JSONObject().put("message", "Command '" + msg.split(" ")[0] + "' is not defined.")
+                    .put("prefix", "error:").toString();
         }
+    }
+
+    private String prefixify(String prefix, String message) {
+        return new JSONObject().put("prefix", prefix)
+                .put("message", message).toString();
     }
 
     private String addDefinition(String definition) {
@@ -85,7 +92,7 @@ public class Gatekeeper {
         if (definition.contains("\"")) {
             String expression = StringUtils.substringBetween(definition, "\"");
             if (expression.isEmpty()) {
-                return new JSONObject().put("prefix", "Error:")
+                return new JSONObject().put("prefix", "error:")
                         .put("message", "Invalid expression formatting (found an open " +
                                 "quote with no matching closing quote).").toString();
             }
@@ -96,7 +103,7 @@ public class Gatekeeper {
             String[] postStringSplit = postString.split(" ");
 
             if (preStringSplit.length != 2 || !postString.isEmpty()) {
-                return new JSONObject().put("prefix", "Error:")
+                return new JSONObject().put("prefix", "error:")
                         .put("message", "'define {identifier} {expression}' expects 2 arguments; " +
                                 "received " + preStringSplit.length + postStringSplit.length + ".").toString();
             }
@@ -106,7 +113,7 @@ public class Gatekeeper {
         } else {
             String[] definitionComponents = definition.split(" ");
             if (definitionComponents.length != 3) {
-                return new JSONObject().put("prefix", "Error:")
+                return new JSONObject().put("prefix", "error:")
                         .put("message", "'define {identifier} {expression}' expects 2 arguments; received "
                                 + definitionComponents.length + ".").toString();
             }
@@ -126,11 +133,11 @@ public class Gatekeeper {
                 this.userDefinitions.remove(key);
                 return "Forgot definition '" + key + "'.";
             } else {
-                return new JSONObject().put("prefix", "Error:")
+                return new JSONObject().put("prefix", "error:")
                         .put("message", "Definition '" + key + "' does not exist.").toString();
             }
         } else {
-            return new JSONObject().put("prefix", "Error:")
+            return new JSONObject().put("prefix", "error:")
                     .put("message", "'forget {identifier}' expects 1 argument; received "
                             + components.length + ".").toString();
         }
